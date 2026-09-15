@@ -76,15 +76,23 @@ jobs:
           rclone lsjson \
             "r2:rf-hac-cache/$OUTPUT_NAME"
 
-      - name: Generate download link
+      - name: Done
         shell: bash
         run: |
-          LINK=$(rclone link \
-            "r2:rf-hac-cache/$OUTPUT_NAME" \
-            --expire 168h)
-
-          echo "## Download" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Transfer complete" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "File: \`$OUTPUT_NAME\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "$LINK" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "### 1. Mac: generate a 7-day download link" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "rclone link \"cf-r2:rf-hac-cache/$OUTPUT_NAME\" --expire 168h" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          echo "### 2. Windows: download" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```powershell' >> "$GITHUB_STEP_SUMMARY"
+          echo "curl.exe -L --fail --retry 10 --retry-all-errors -C - -o \"$OUTPUT_NAME\" \"PASTE_PRESIGNED_URL_HERE\"" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
