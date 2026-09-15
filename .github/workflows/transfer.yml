@@ -1,0 +1,40 @@
+name: Transfer RF-HAC
+
+on:
+  workflow_dispatch:
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+
+    env:
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+
+    steps:
+      - name: Install rclone
+        run: |
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Transfer dataset
+        shell: bash
+        run: |
+          set -o pipefail
+
+          curl -fL \
+            --retry 10 \
+            --retry-delay 5 \
+            "https://zenodo.org/records/10602471/files/3d_point_clouds.zip?download=1" \
+          | rclone rcat \
+            "r2:rf-hac-cache/3d_point_clouds.zip" \
+            --size 15188384982 \
+            --s3-no-check-bucket \
+            -P
+
+      - name: Check result
+        run: |
+          rclone ls r2:rf-hac-cache
