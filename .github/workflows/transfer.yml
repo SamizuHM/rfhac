@@ -1,13 +1,27 @@
-name: Transfer RF-HAC
+name: Remote File Downloader
 
 on:
   workflow_dispatch:
+    inputs:
+      url:
+        description: "Source file URL"
+        required: true
+        type: string
+
+      filename:
+        description: "Save as (e.g. dataset.zip)"
+        required: true
+        type: string
 
 jobs:
   transfer:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
 
     env:
+      SOURCE_URL: ${{ inputs.url }}
+      OUTPUT_NAME: ${{ inputs.filename }}
+
       RCLONE_CONFIG_R2_TYPE: s3
       RCLONE_CONFIG_R2_PROVIDER: Cloudflare
       RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
@@ -19,22 +33,58 @@ jobs:
       - name: Install rclone
         run: |
           curl -fsSL https://rclone.org/install.sh | sudo bash
+          rclone version
 
-      - name: Transfer dataset
+      - name: Check source
+        shell: bash
+        run: |
+          echo "Source:"
+          echo "$SOURCE_URL"
+          echo
+          echo "Destination:"
+          echo "r2:rf-hac-cache/$OUTPUT_NAME"
+          echo
+
+          curl -fLIsS \
+            --connect-timeout 20 \
+            --max-time 60 \
+            "$SOURCE_URL" | tail -30 || true
+
+      - name: Transfer
         shell: bash
         run: |
           set -o pipefail
 
-          curl -fL \
+          curl \
+            -fL \
             --retry 10 \
             --retry-delay 5 \
-            "https://zenodo.org/records/10602471/files/3d_point_clouds.zip?download=1" \
+            --retry-all-errors \
+            --connect-timeout 30 \
+            "$SOURCE_URL" \
           | rclone rcat \
-            "r2:rf-hac-cache/3d_point_clouds.zip" \
-            --size 15188384982 \
+            "r2:rf-hac-cache/$OUTPUT_NAME" \
             --s3-no-check-bucket \
+            --s3-upload-cutoff 64M \
+            --s3-chunk-size 64M \
             -P
 
-      - name: Check result
+      - name: Verify
+        shell: bash
         run: |
-          rclone ls r2:rf-hac-cache
+          echo "Uploaded object:"
+          rclone lsjson \
+            "r2:rf-hac-cache/$OUTPUT_NAME"
+
+      - name: Generate download link
+        shell: bash
+        run: |
+          LINK=$(rclone link \
+            "r2:rf-hac-cache/$OUTPUT_NAME" \
+            --expire 168h)
+
+          echo "## Download" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "File: \`$OUTPUT_NAME\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "$LINK" >> "$GITHUB_STEP_SUMMARY"
